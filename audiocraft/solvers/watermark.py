@@ -37,6 +37,7 @@ from ..utils.utils import get_pool_executor
 from torchmetrics.audio.snr import ScaleInvariantSignalNoiseRatio
 from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
 
+from sklearn.decomposition import PCA
 
 if tp.TYPE_CHECKING:
     from ..models.watermark import WMModel
@@ -71,6 +72,15 @@ def random_message(nbits: int, batch_size: int) -> torch.Tensor:
     if nbits == 0:
         return torch.tensor([])
     return torch.randint(0, 2, (batch_size, nbits))
+
+def get_message_from_ultrasound_features(ultrasound_features: torch.Tensor) -> torch.Tensor:
+    """Return watermark from ultrasound features."""
+    batch_size, channels, features = ultrasound_features.shape
+    ultrasound_features_2d = ultrasound_features.view(batch_size, -1)
+    pca = PCA(n_components=16)
+    watermark = pca.fit_transform(ultrasound_features_2d.cpu().numpy())
+    watermark = torch.tensor(watermark, device=ultrasound_features.device, dtype=torch.float32)
+    return watermark
 
 
 class WatermarkSolver(base.StandardSolver):
@@ -248,12 +258,13 @@ class WatermarkSolver(base.StandardSolver):
         watermark *= mask  # Apply mask to the watermark
         return signal, watermark, mask
 
-    def run_step(self, idx: int, batch: torch.Tensor, metrics: dict):
+    def run_step(self, idx: int, batch: torch.Tensor, metrics: dict, ultrasound_features: torch.Tensor):
         """Perform one training or valid step on a given batch."""
         x = batch.to(self.device)
         y = x.clone()
-        nbits = getattr(self.model, "nbits")
-        message = random_message(nbits, y.shape[0]).to(self.device)
+        # nbits = getattr(self.model, "nbits")
+        # message = random_message(nbits, y.shape[0]).to(self.device)
+        message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
         watermark = self.model.get_watermark(x, message=message)
         y, watermark, mask = self.crop(y, watermark)
 
@@ -410,15 +421,23 @@ class WatermarkSolver(base.StandardSolver):
             total=updates,
             updates=self.log_updates,
         )
+        ultrasound_loader = self.dataloaders['evaluate']
+        ultrasound_lp = self.log_progress(
+            f"{evaluate_stage_name} ultrasound",
+            ultrasound_loader,
+            total=updates,
+            updates=self.log_updates,
+        )
         average = flashy.averager()
 
         pendings = []
         ctx = multiprocessing.get_context("spawn")
         with get_pool_executor(self.cfg.evaluate.num_workers, mp_context=ctx) as pool:
-            for batch in lp:
+            for batch, ultrasound_features in zip(lp, ultrasound_lp):
                 x = batch.to(self.device)
                 with torch.no_grad():
-                    message = random_message(self.model.nbits, x.shape[0])
+                    # message = random_message(self.model.nbits, x.shape[0])
+                    message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
                     watermark = self.model.get_watermark(x, message)
                     x_wm = x + watermark
                 y_pred = x_wm.cpu()
@@ -536,19 +555,25 @@ class WatermarkSolver(base.StandardSolver):
         sample_manager = SampleManager(self.xp, map_reference_to_sample_id=True)
         generate_stage_name = str(self.current_stage)
 
-        loader = self.dataloaders["generate"]
+        loader = self.dataloaders['valid']
         updates = len(loader)
         lp = self.log_progress(
             generate_stage_name, loader, total=updates, updates=self.log_updates
         )
+
+        ultrasound_loader = self.dataloaders['evaluate']
+        ultrasound_lp = self.log_progress(
+            generate_stage_name, ultrasound_loader, total=updates, updates=self.log_updates,
+        )
         path_dir = os.path.join(self.path_specs, f"epoch={self.epoch}")
         os.makedirs(path_dir, exist_ok=True)
         first_batch = True
-        for batch in lp:
+        for batch,  ultrasound_features in zip(lp, ultrasound_lp):
             reference, _ = batch
             reference = reference.to(self.device)
             with torch.no_grad():
-                message = random_message(self.model.nbits, reference.shape[0])
+                # message = random_message(self.model.nbits, reference.shape[0])
+                message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
                 watermark = self.model.get_watermark(reference, message)
                 x_wm = reference + watermark
 

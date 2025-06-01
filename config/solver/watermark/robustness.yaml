@@ -13,3 +13,19 @@ balancer:
   ema_decay: 0.999
   per_batch_item: true
   total_norm: 1.
+
+# optimization hyperparameters
+optim:
+  epochs: 20
+  updates_per_epoch: 540
+  lr: 5e-5
+  max_norm: 3.0
+  optimizer: adam
+  adam:
+    betas: [0.5, 0.9]
+    weight_decay: 0.
+  ema:
+    use: true # whether to use EMA or not
+    updates: 1 # update at every step
+    device: ${device} # device for EMA, can be put on GPU if more frequent updates
+    decay: 0.99 # EMA decay value, if null, no EMA is used

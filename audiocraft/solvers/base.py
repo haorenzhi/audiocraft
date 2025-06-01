@@ -510,7 +510,7 @@ class StandardSolver(ABC, flashy.BaseSolver):
         return is_last_epoch or is_epoch_every
 
     @abstractmethod
-    def run_step(self, idx: int, batch: tp.Any, metrics: dict):
+    def run_step(self, idx: int, batch: tp.Any, metrics: dict, **kwargs: tp.Any):
         """Perform one training or valid step on a given batch."""
         ...
 
@@ -519,6 +519,8 @@ class StandardSolver(ABC, flashy.BaseSolver):
         self.model.train(self.is_training)
 
         loader = self.dataloaders[dataset_split]
+        ultrasound_loader = self.dataloaders['valid']
+
         # get a different order for distributed training, otherwise this will get ignored
         if flashy.distrib.world_size() > 1 \
            and isinstance(loader.sampler, torch.utils.data.distributed.DistributedSampler):
@@ -529,17 +531,23 @@ class StandardSolver(ABC, flashy.BaseSolver):
             batch = next(iter(loader))
             loader = [batch] * updates_per_epoch  # type: ignore
         lp = self.log_progress(self.current_stage, loader, total=updates_per_epoch, updates=self.log_updates)
+        if ultrasound_loader is not None:
+            lp_ultrasound = self.log_progress(self.current_stage, ultrasound_loader, total=updates_per_epoch, updates=self.log_updates)
+
         average = flashy.averager()  # epoch wise average
         instant_average = flashy.averager()  # average between two logging
         metrics: dict = {}
 
         with self.profiler, self.deadlock_detect:  # profiler will only run for the first 20 updates.
-            for idx, batch in enumerate(lp):
+            for idx, (batch, ultrasound_features) in enumerate(zip(loader, lp_ultrasound)):
                 self.deadlock_detect.update('batch')
                 if idx >= updates_per_epoch:
                     break
                 metrics = {}
-                metrics = self.run_step(idx, batch, metrics)
+                self.logger.info(f"batch shape: {batch.shape}")
+                self.logger.info(f"ultrasound_features shape: {ultrasound_features.shape}")
+
+                metrics = self.run_step(idx, batch, metrics, ultrasound_features)
                 self.deadlock_detect.update('step')
                 # run EMA step
                 if self.ema is not None and self.is_training and (idx + 1) % self.cfg.optim.ema.updates == 0:
@@ -548,8 +556,9 @@ class StandardSolver(ABC, flashy.BaseSolver):
                 self.deadlock_detect.update('ema')
                 self.profiler.step()
                 instant_metrics = instant_average(metrics)
-                if lp.update(**instant_metrics):
-                    instant_average = flashy.averager()  # reset averager between two logging
+                self.logger.info(instant_metrics)
+                # if lp.update(**instant_metrics):
+                #     instant_average = flashy.averager()  # reset averager between two logging
                 metrics = average(metrics)  # epoch wise average
                 self.deadlock_detect.update('end_batch')
 

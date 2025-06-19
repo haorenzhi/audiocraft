@@ -73,15 +73,6 @@ def random_message(nbits: int, batch_size: int) -> torch.Tensor:
         return torch.tensor([])
     return torch.randint(0, 2, (batch_size, nbits))
 
-def get_message_from_ultrasound_features(ultrasound_features: torch.Tensor) -> torch.Tensor:
-    """Return watermark from ultrasound features."""
-    batch_size, channels, features = ultrasound_features.shape
-    ultrasound_features_2d = ultrasound_features.view(batch_size, -1)
-    pca = PCA(n_components=16)
-    watermark = pca.fit_transform(ultrasound_features_2d.cpu().numpy())
-    watermark = torch.tensor(watermark, device=ultrasound_features.device, dtype=torch.float32)
-    return watermark
-
 
 class WatermarkSolver(base.StandardSolver):
     """Solver for different watermarking models"""
@@ -262,9 +253,7 @@ class WatermarkSolver(base.StandardSolver):
         """Perform one training or valid step on a given batch."""
         x = batch.to(self.device)
         y = x.clone()
-        # nbits = getattr(self.model, "nbits")
-        # message = random_message(nbits, y.shape[0]).to(self.device)
-        message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
+        message = self.model.embed_message(ultrasound_features)
         watermark = self.model.get_watermark(x, message=message)
         y, watermark, mask = self.crop(y, watermark)
 
@@ -370,18 +359,18 @@ class WatermarkSolver(base.StandardSolver):
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-        # informative losses only
-        info_losses: dict = {}
-        with torch.no_grad():
-            for loss_name, criterion in self.info_losses.items():
-                loss = criterion(y_wm, y)
-                info_losses[loss_name] = loss
-            # pesq
-            metrics["pesq"] = tensor_pesq(y_wm, y, sr=self.cfg.sample_rate)
-            # max allocated memory
-            metrics["max_mem"] = torch.cuda.max_memory_allocated() / 1e9
+        # # informative losses only
+        # info_losses: dict = {}
+        # with torch.no_grad():
+        #     for loss_name, criterion in self.info_losses.items():
+        #         loss = criterion(y_wm, y)
+        #         info_losses[loss_name] = loss
+        #     # pesq
+        #     metrics["pesq"] = tensor_pesq(y_wm, y, sr=self.cfg.sample_rate)
+        #     # max allocated memory
+        #     metrics["max_mem"] = torch.cuda.max_memory_allocated() / 1e9
 
-        metrics.update(info_losses)
+        # metrics.update(info_losses)
         if self.cfg.losses.adv != 0 or self.cfg.losses.feat != 0:
             # aggregated GAN losses: this is useful to report adv and feat across different adversarial loss setups
             adv_losses = [
@@ -437,7 +426,7 @@ class WatermarkSolver(base.StandardSolver):
                 x = batch.to(self.device)
                 with torch.no_grad():
                     # message = random_message(self.model.nbits, x.shape[0])
-                    message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
+                    message = self.model.embed_message(ultrasound_features).to(self.device)
                     watermark = self.model.get_watermark(x, message)
                     x_wm = x + watermark
                 y_pred = x_wm.cpu()
@@ -569,11 +558,12 @@ class WatermarkSolver(base.StandardSolver):
         os.makedirs(path_dir, exist_ok=True)
         first_batch = True
         for batch,  ultrasound_features in zip(lp, ultrasound_lp):
-            reference, _ = batch
+            print(f"Generating watermark for batch {batch.shape}")
+            reference = batch
             reference = reference.to(self.device)
             with torch.no_grad():
                 # message = random_message(self.model.nbits, reference.shape[0])
-                message = get_message_from_ultrasound_features(ultrasound_features).to(self.device)
+                message = self.model.embed_message(ultrasound_features).to(self.device)
                 watermark = self.model.get_watermark(reference, message)
                 x_wm = reference + watermark
 

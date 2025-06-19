@@ -29,7 +29,7 @@ balancer:
   total_norm: 1.
 
 crop:
-  prob: 0.4
+  prob: 0.1
   shuffle_prob: 0.2
   pad_prob: 0.2  # shuffle_prob + pad_prob + prob <= 1
   size: 0.5
@@ -149,8 +149,8 @@ mpd:
 # data hyperparameters
 dataset:
   batch_size: 16
-  num_workers: 10
-  segment_duration: 1
+  num_workers: 16
+  segment_duration: 2
   train:
     num_samples: 500000
   valid:
@@ -189,9 +189,9 @@ checkpoint:
 
 # optimization hyperparameters
 optim:
-  epochs: 300
-  updates_per_epoch: 2000
-  lr: 5e-5
+  epochs: 20
+  updates_per_epoch: 50
+  lr: 1e-4
   max_norm: 3.0
   optimizer: adam
   adam:

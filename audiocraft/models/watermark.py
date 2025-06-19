@@ -45,6 +45,20 @@ class WMModel(ABC, nn.Module):
             Message decoding results of shape (B, n, frames)
         """
 
+    @abstractmethod
+    def embed_message(
+        self,
+        ultrasound_features: torch.Tensor
+    ) -> torch.Tensor:
+        """Embed a message into ultrasound features.
+
+        Args:
+            ultrasound_features: Tensor of ultrasound features.
+
+        Returns:
+            torch.Tensor: Watermarked ultrasound features.
+        """
+
 
 class AudioSeal(WMModel):
     """Wrap Audioseal (https://github.com/facebookresearch/audioseal) for the
@@ -72,6 +86,19 @@ class AudioSeal(WMModel):
     ) -> torch.Tensor:
         return self.generator.get_watermark(x, message=message, sample_rate=sample_rate)
 
+    def embed_message(
+        self,
+        ultrasound_features: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Embed a message into ultrasound features.
+        Args:
+            ultrasound_features: Tensor of ultrasound features.
+        Returns:
+            torch.Tensor: Watermarked ultrasound features.
+        """
+        return self.generator.embed_message(ultrasound_features)
+
     def detect_watermark(self, x: torch.Tensor) -> torch.Tensor:
         """
         Detect the watermarks from the audio signal.  The first two units of the output
@@ -98,6 +125,7 @@ class AudioSeal(WMModel):
         alpha: float = 1.0,
     ) -> torch.Tensor:
         """Apply the watermarking to the audio signal x with a tune-down ratio (default 1.0)"""
+        breakpoint()
         wm = self.get_watermark(x, message)
         return x + alpha * wm
 

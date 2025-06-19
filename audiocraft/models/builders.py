@@ -371,6 +371,12 @@ def get_watermark_model(cfg: omegaconf.DictConfig) -> WMModel:
     hidden_size = getattr(cfg.seanet, "dimension", 128)
     msg_processor = audioseal.MsgProcessor(nbits, hidden_size=hidden_size)
 
+    encoder_ultrasound, _ = get_encodec_autoencoder("seanet", cfg)
+    print("Encoder and encoder_ultrasound are the same:", encoder is encoder_ultrasound)
+    ultrasound_embedding = audioseal.UltrasoundEmbedding(
+        nbits=nbits, hidden_size=hidden_size, encoder_ultrasound=encoder_ultrasound
+    )
+
     # Build detector using audioseal API
     def _get_audioseal_detector():
         # We don't need encoder and decoder params from seanet, remove them
@@ -388,7 +394,7 @@ def get_watermark_model(cfg: omegaconf.DictConfig) -> WMModel:
 
     detector = _get_audioseal_detector()
     generator = audioseal.AudioSealWM(
-        encoder=encoder, decoder=decoder, msg_processor=msg_processor
+        encoder=encoder, decoder=decoder, msg_processor=msg_processor, ultrasound_embedding=ultrasound_embedding
     )
     model = AudioSeal(generator=generator, detector=detector, nbits=nbits)
 

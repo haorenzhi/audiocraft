@@ -544,9 +544,6 @@ class StandardSolver(ABC, flashy.BaseSolver):
                 if idx >= updates_per_epoch:
                     break
                 metrics = {}
-                self.logger.info(f"batch shape: {batch.shape}")
-                self.logger.info(f"ultrasound_features shape: {ultrasound_features.shape}")
-
                 metrics = self.run_step(idx, batch, metrics, ultrasound_features)
                 self.deadlock_detect.update('step')
                 # run EMA step

@@ -150,7 +150,7 @@ mpd:
 dataset:
   batch_size: 16
   num_workers: 16
-  segment_duration: 2
+  segment_duration: 1
   train:
     num_samples: 500000
   valid:
@@ -189,9 +189,9 @@ checkpoint:
 
 # optimization hyperparameters
 optim:
-  epochs: 20
+  epochs: 30
   updates_per_epoch: 50
-  lr: 1e-4
+  lr: 5e-5
   max_norm: 3.0
   optimizer: adam
   adam:

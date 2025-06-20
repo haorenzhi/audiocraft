@@ -125,7 +125,6 @@ class AudioSeal(WMModel):
         alpha: float = 1.0,
     ) -> torch.Tensor:
         """Apply the watermarking to the audio signal x with a tune-down ratio (default 1.0)"""
-        breakpoint()
         wm = self.get_watermark(x, message)
         return x + alpha * wm
 

@@ -62,5 +62,5 @@ aug_weights:
   encodec: 0.1
   identity: 1 # no augmentation
 
-# n_max_aug: null
-n_max_aug: 0
+n_max_aug: null
+# n_max_aug: 0

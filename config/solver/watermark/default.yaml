@@ -158,7 +158,7 @@ dataset:
   evaluate:
     batch_size: 16
     num_samples: 10000
-    segment_duration: 10
+    segment_duration: 1
 
   generate:
     batch_size: 16
@@ -167,13 +167,13 @@ dataset:
 
 # solver hyperparameters
 evaluate:
-  every: 10
+  every: 25
   num_workers: 5
   metrics:
     visqol: false
     sisnr: true
 generate:
-  every: 10
+  every: 50
   num_workers: 5
   audio:
     sample_rate: ${sample_rate}

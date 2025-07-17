@@ -16,7 +16,7 @@ balancer:
 
 # optimization hyperparameters
 optim:
-  epochs: 20
+  epochs: 100
   updates_per_epoch: 540
   lr: 5e-5
   max_norm: 3.0

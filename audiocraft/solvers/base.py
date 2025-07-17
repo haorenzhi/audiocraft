@@ -539,12 +539,12 @@ class StandardSolver(ABC, flashy.BaseSolver):
         metrics: dict = {}
 
         with self.profiler, self.deadlock_detect:  # profiler will only run for the first 20 updates.
-            for idx, (batch, ultrasound_features) in enumerate(zip(loader, lp_ultrasound)):
+            for idx, (batch, batch_ultrasound) in enumerate(zip(loader, lp_ultrasound)):
                 self.deadlock_detect.update('batch')
                 if idx >= updates_per_epoch:
                     break
                 metrics = {}
-                metrics = self.run_step(idx, batch, metrics, ultrasound_features)
+                metrics = self.run_step(idx, batch, metrics, batch_ultrasound)
                 self.deadlock_detect.update('step')
                 # run EMA step
                 if self.ema is not None and self.is_training and (idx + 1) % self.cfg.optim.ema.updates == 0:

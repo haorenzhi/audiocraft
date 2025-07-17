@@ -249,11 +249,12 @@ class WatermarkSolver(base.StandardSolver):
         watermark *= mask  # Apply mask to the watermark
         return signal, watermark, mask
 
-    def run_step(self, idx: int, batch: torch.Tensor, metrics: dict, ultrasound_features: torch.Tensor):
+    def run_step(self, idx: int, batch: torch.Tensor, metrics: dict, batch_ultrasound: torch.Tensor):
         """Perform one training or valid step on a given batch."""
         x = batch.to(self.device)
         y = x.clone()
-        message = self.model.embed_message(ultrasound_features)
+        # Add a loss between ultrasound and audible couplings and alignment
+        message = self.model.embed_message(batch_ultrasound)
         watermark = self.model.get_watermark(x, message=message)
         y, watermark, mask = self.crop(y, watermark)
 
@@ -309,9 +310,12 @@ class WatermarkSolver(base.StandardSolver):
             aug_y_wm = aug_cat[y.size(0):]
             positive = self.model.detect_watermark(aug_y_wm)
             negative = self.model.detect_watermark(aug_y)
+            ## Figure out what does positive and negative mean here and if they contains the message
             for loss_name, criterion in self.wm_losses.items():
                 loss = criterion(positive, negative, mask_aug, message)
                 other_losses[f"{loss_name}_{augmentation_name}"] = loss
+
+        # compute the audio-ultrasound alignment loss
 
         # weighted losses
         metrics.update(balanced_losses)
@@ -410,7 +414,7 @@ class WatermarkSolver(base.StandardSolver):
             total=updates,
             updates=self.log_updates,
         )
-        ultrasound_loader = self.dataloaders['evaluate']
+        ultrasound_loader = self.dataloaders['valid']
         ultrasound_lp = self.log_progress(
             f"{evaluate_stage_name} ultrasound",
             ultrasound_loader,
@@ -550,7 +554,7 @@ class WatermarkSolver(base.StandardSolver):
             generate_stage_name, loader, total=updates, updates=self.log_updates
         )
 
-        ultrasound_loader = self.dataloaders['evaluate']
+        ultrasound_loader = self.dataloaders['valid']
         ultrasound_lp = self.log_progress(
             generate_stage_name, ultrasound_loader, total=updates, updates=self.log_updates,
         )
